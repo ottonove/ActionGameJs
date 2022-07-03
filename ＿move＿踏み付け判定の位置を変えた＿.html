@@ -1,0 +1,777 @@
+<html>
+<head>
+<title>move</title>
+<style type="text/css">
+</style>
+<!--<script type="text/javascript" src="http://www.google.com/jsapi"></script>
+<script type="text/javascript">google.load('jquery', '1')</script>-->
+<script type="text/javascript">
+
+var reset = false;
+
+window.onload = function(){
+	var main = new game();
+};
+
+
+	//後でこれを、heroだけではなく、敵や弾にも使えるようなオブジェクトに変える。
+//hero
+function createHero(Base){
+	var obj = this;
+	obj.img = document.createElement("img");
+	obj.img.src = "url(images/hero.png)";
+	Base.baseDiv.appendChild(obj.img);//引数のパラメータの要素に、挿入。
+	var style = obj.img.style;//以降の記述を省略するためだけ。
+		style.width = "50px";
+		style.height = "70px";
+		style.backgroundColor = "orange";
+		style.position = "absolute";
+		style.top = "700px";	//後で、viewを基準にしたものに変更する。
+		style.left = "500px";//後で直す。
+	//移動をさせる時に必要なプロパティ。
+	obj.vx = 0;
+	obj.vy = 0;
+	obj.ax = 1.5;//加速度
+	obj.vx_MAX = 15;//最高速度
+	obj.jump = 25;
+	obj.jumpFlag = true;
+	obj.stand = parseInt(style.height);//立った状態の高さ
+	obj.squat = 20;//parseInt(style.height) / 2;//じゃがんだ状態の高さ
+	obj.squatFlag = false;
+	obj.LadderSpeed = 4;
+	obj.onLadder = false;
+	//this.mapPosition = new Array();
+};
+
+//view
+function createView(){
+	var obj = this;
+	obj.frame = document.createElement("div");
+	document.body.appendChild(obj.frame);
+	var style = obj.frame.style;//以降の記述を省略するためだけ。
+		style.width = "600px";
+		style.height = "600px";
+		style.border = "black 5px solid";
+		style.position = "relative";
+		style.margin = "80px auto";
+		style.overflow = "hidden";
+
+};
+
+//base
+function createBase(view){
+	var obj = this;
+	obj.baseDiv = document.createElement("div");
+	view.frame.appendChild(obj.baseDiv);
+	var style = obj.baseDiv.style;//以降の記述を省略するためだけ。
+		style.width = "1200px";
+		style.height = "800px";
+		style.position = "absolute";
+		style.top = parseInt(view.frame.style.height) - parseInt(style.height) + "px";
+		style.left = ( parseInt(view.frame.style.width) - parseInt(style.width) ) / 2 + "px";
+};
+
+//map
+function createMap(Base){
+	var obj = this;
+	var mapImage = new Array("images/block.png");
+	obj.mapWidthSize = 50;
+	obj.mapHeightSize = 50;
+	obj.mapFall = new Array();//落下するブロックを管理する。
+	obj.mapLadder = new Array();
+	obj.maplift = new Array();//ブロックの押し上げを管理する。
+	obj.stage = new Array();//ステージ間の移動に使う。
+	//mapチップ。これ自体を、引数にすれば、ステージの変更が楽かも。
+	var a = new Array();
+		//以降は、多次元配列のテスト、意味ない。
+		a[0] = new Array( [1,2],[3,4],[5,6] );
+		a[1] = new Array( [7,8],[9,10],[11,12] );
+
+	obj.mapArray = new Array(
+		[1,1,1,1,  1,1,1,1,  1,1,1,1,  1,1,1,1,  1,1,1,1,  1,1,1,1],
+		[1,0,0,0,  0,0,0,0,  0,0,0,0,  0,0,0,0,  0,0,0,0,  0,0,0,1],
+		
+		[1,0,0,0,  0,0,0,0,  0,0,0,1,  1,0,0,0,  0,0,0,0,  0,0,0,1],
+		[1,0,0,0,  0,0,0,0,  0,0,0,0,  0,1,0,0,  0,0,0,0,  0,0,0,1],
+		
+		[1,0,0,0,  0,0,0,0,  0,0,0,0,  0,0,1,0,  0,0,0,0,  0,0,0,1],
+		[1,0,0,0,  0,0,0,0,  0,0,0,0,  0,0,0,1,  0,0,0,0,  1,0,0,1],
+		
+		[1,0,0,0,  0,0,0,0,  0,0,0,0,  0,0,0,0,  0,0,0,0,  0,0,0,1],
+		[1,0,0,0,  0,0,0,0,  0,0,0,0,  0,0,0,0,  1,0,1,1,  0,0,0,1],
+		
+		[1,1,1,1,  0,0,0,0,  0,0,0,0,  0,0,0,0,  0,0,0,0,  0,0,0,1],
+		[1,0,0,1,  0,a,0,0,  2,2,0,0,  0,0,0,1,  0,0,0,0,  0,0,0,1],
+		
+		[1,0,3,1,  0,0,0,0,  0,0,3,0,  0,0,1,0,  0,0,0,0,  0,0,0,1],
+		[1,1,3,1,  0,1,1,1,  0,0,3,0,  0,1,0,0,  0,0,0,0,  0,0,0,1],
+		
+		[1,0,3,1,  0,1,1,1,  0,0,3,0,  1,0,0,0,  0,0,0,0,  0,0,0,1],
+		[1,0,0,0,  0,0,0,0,  0,0,3,1,  0,0,0,0,  0,0,0,0,  0,0,0,1],
+		
+		[1,0,0,0,  0,0,0,0,  0,0,0,0,  0,0,0,0,  0,0,0,0,  0,0,0,1],
+		[1,1,1,1,  1,1,1,1,  1,1,1,1,  1,1,1,1,  1,1,1,1,  1,1,1,1]
+	);
+	for(var i=0; i<obj.mapArray.length; i++){
+		var array = new Array();
+		for(var j=0; j<obj.mapArray[i].length; j++){
+			switch(obj.mapArray[i][j]){
+				case 1:
+					array.push(createMapOperate(0));//画像の番号を引数に渡すやり方は、ややこしいかも、要見直し。
+					break;
+				case 2:
+					obj.mapFall.push(createFallBlock(1));
+					array.push(null);
+					break;
+				case 3:
+					obj.mapLadder.push(createLadder(2));
+					array.push(null);
+					break;
+				case a:
+					obj.stage.push(createStegeDoor(3));
+					array.push(null);
+					break;
+				default:
+					array.push(null);
+			};
+		};
+		obj.maplift.push(array);
+	};
+	function createMapOperate(num){
+		var chip = document.createElement("img");
+		chip.src = mapImage[num];
+		Base.baseDiv.appendChild(chip);
+		chip.style.position = "absolute";
+		chip.style.width = obj.mapWidthSize;
+		chip.style.height = obj.mapHeightSize;
+		chip.style.top = obj.mapHeightSize * i;
+		chip.style.left = obj.mapWidthSize * j;
+		chip.lift = 0;
+		return chip;
+	};
+	//落下ブロック作成
+	function createFallBlock(num){
+		var chip = document.createElement("img");
+		chip.src = mapImage[num];
+		Base.baseDiv.appendChild(chip);
+		chip.style.position = "absolute";
+		chip.style.backgroundColor = "black";
+		chip.style.width = obj.mapWidthSize;
+		chip.style.height = obj.mapHeightSize;
+		chip.style.top = obj.mapHeightSize * i;
+		chip.style.left = obj.mapWidthSize * j;
+		chip.fallFlag = false;
+		chip.vx = 0;
+		chip.vy = 0;
+		return chip;
+	};
+	//梯子の作成
+	function createLadder(num){
+		var chip = document.createElement("img");
+		chip.src = mapImage[num];
+		Base.baseDiv.appendChild(chip);
+		chip.style.position = "absolute";
+		chip.style.backgroundColor = "olive";
+		chip.style.width = obj.mapWidthSize;
+		chip.style.height = obj.mapHeightSize;
+		chip.style.top = obj.mapHeightSize * i;
+		chip.style.left = obj.mapWidthSize * j;
+		return chip;
+	};
+	//ステージドア作成
+	function createStegeDoor(num){
+		var chip = document.createElement("img");
+		chip.src = mapImage[num];
+		Base.baseDiv.appendChild(chip);
+		chip.style.position = "absolute";
+		chip.style.backgroundColor = "pink";
+		chip.style.width = obj.mapWidthSize;
+		chip.style.height = obj.mapHeightSize*2;
+		chip.style.top = obj.mapHeightSize * i;
+		chip.style.left = obj.mapWidthSize * j;
+		return chip;
+	};
+};
+
+//viewのスクロール
+function viewScroll(view, base,hero){
+	var heroTop = Math.floor(parseInt(hero.img.style.top));
+	var squatHeight = hero.stand-hero.squat;
+	var heroLeft = Math.floor(parseInt(hero.img.style.left));
+	if(hero.squatFlag){
+		base.baseDiv.style.top = -(heroTop -parseInt(view.frame.style.height)/2) + squatHeight;
+	} else {
+		base.baseDiv.style.top = -(heroTop - parseInt(view.frame.style.height)/2);
+	};
+	if(parseInt(base.baseDiv.style.top) > 0){
+		base.baseDiv.style.top = 0;
+	} else if ( parseInt(base.baseDiv.style.top) < -(parseInt(base.baseDiv.style.height) - parseInt(view.frame.style.height)) ){
+		base.baseDiv.style.top = -(parseInt(base.baseDiv.style.height) - parseInt(view.frame.style.height)) + "px";
+	};
+	
+	base.baseDiv.style.left = -(heroLeft - parseInt(view.frame.style.width)/2);
+	if(parseInt(base.baseDiv.style.left) > 0){
+		base.baseDiv.style.left = 0;
+	} else if ( parseInt(base.baseDiv.style.left) < -(parseInt(base.baseDiv.style.width) - parseInt(view.frame.style.width)) ){
+		base.baseDiv.style.left = -(parseInt(base.baseDiv.style.width) - parseInt(view.frame.style.width)) + "px";
+	};
+};
+
+//しゃがんだ状態から、立ち上がれるかの判定
+function standCheck(target,map){
+	//左
+	var LEFT = Math.floor( parseInt(target.img.style.left) / map.mapWidthSize );//現在の左のマップ座標
+	if(LEFT < 0){
+		LEFT = 0;
+	};
+	if(LEFT >= map.mapArray[0].length){
+		LEFT = map.mapArray[0].length-1;
+	};
+
+	//上
+	var TOP = Math.floor( parseInt(target.img.style.top) / map.mapHeightSize);
+	var newTOP = Math.floor( (parseInt(target.img.style.top) - (target.stand - target.squat)) / map.mapHeightSize);
+	if(TOP < 0){
+		TOP = 0;
+	};
+	if(TOP >= map.mapArray.length){
+		TOP = map.mapArray.length-1;
+	};
+	if(newTOP < 0){
+		newTOP = 0;
+	};
+	if(newTOP >= map.mapArray.length){
+		newTOP = map.mapArray.length-1;
+	};
+
+	//右
+	var RIGHT = Math.floor( (parseInt(target.img.style.left) + parseInt(target.img.style.width)-1) / map.mapWidthSize );//右側  -1は、微調整のため。
+	if(RIGHT < 0){
+		RIGHT = 0;
+	};
+	if(RIGHT >= map.mapArray[0].length){
+		RIGHT = map.mapArray[0].length-1;
+	};
+
+	var i,j;
+	for(i=TOP; i>=newTOP; i--){
+		for(j=LEFT; j<=RIGHT; j++){
+			if(map.mapArray[i][j] == 1){
+				return false;//しゃがみ状態から、立ち上がれるかを判定するため。
+			};
+		};
+	};
+	return true;//しゃがみ状態から、立ち上がれるかを判定するため。
+};
+
+function Move(target,map,s){
+	//左
+	var LEFT = Math.floor( parseInt(target.img.style.left) / map.mapWidthSize );//現在の左のマップ座標
+	var newLEFT = Math.floor( (parseInt(target.img.style.left) + target.vx) / map.mapWidthSize );//vx分、進んだ時の、左のマップ座標。
+	if(LEFT < 0){
+		LEFT = 0;
+	};
+	if(LEFT >= map.mapArray[0].length){
+		LEFT = map.mapArray[0].length-1;
+	};
+	if(newLEFT < 0){
+		newLEFT = 0;
+	};
+	if(newLEFT >= map.mapArray[0].length){
+		newLEFT = map.mapArray[0].length-1;
+	};
+
+	//上
+	var TOP = Math.floor( parseInt(target.img.style.top) / map.mapHeightSize);
+	var newTOP = Math.floor( (parseInt(target.img.style.top) + target.vy) / map.mapHeightSize);
+	if(TOP < 0){
+		TOP = 0;
+	};
+	if(TOP >= map.mapArray.length){
+		TOP = map.mapArray.length-1;
+	};
+	if(newTOP < 0){
+		newTOP = 0;
+	};
+	if(newTOP >= map.mapArray.length){
+		newTOP = map.mapArray.length-1;
+	};
+
+	//右
+	var RIGHT = Math.floor( (parseInt(target.img.style.left) + parseInt(target.img.style.width)-1) / map.mapWidthSize );//右側  -1は、微調整のため。
+	var newRIGHT = Math.floor( (parseInt(target.img.style.left) + parseInt(target.img.style.width)-1 + target.vx) / map.mapWidthSize );
+	if(RIGHT < 0){
+		RIGHT = 0;
+	};
+	if(RIGHT >= map.mapArray[0].length){
+		RIGHT = map.mapArray[0].length-1;
+	};
+	if(newRIGHT < 0){
+		newRIGHT = 0;
+	};
+	if(newRIGHT >= map.mapArray[0].length){
+		newRIGHT = map.mapArray[0].length-1;
+	};
+
+	//下
+	var BOTTOM = Math.floor( (parseInt(target.img.style.top) + parseInt(target.img.style.height)-1) / map.mapHeightSize);//下 -1は、微調整のため。
+	var newBOTTOM = Math.floor( (parseInt(target.img.style.top) + parseInt(target.img.style.height)-1 + target.vy) / map.mapHeightSize);
+	if(BOTTOM < 0){
+		BOTTOM = 0;
+	};
+	if(BOTTOM >= map.mapArray.length){
+		BOTTOM = map.mapArray.length-1;
+	};
+	if(newBOTTOM < 0){
+		newBOTTOM = 0;
+	};
+	if(newBOTTOM >= map.mapArray.length){
+		newBOTTOM = map.mapArray.length-1;
+	};
+
+	var i,j;
+
+	//Y方向の移動
+	if(s == "Y"){
+		//上に移動
+		if(target.vy < 0){
+			for(i=TOP; i>=newTOP; i--){
+				for(j=LEFT; j<=RIGHT; j++){
+					if(map.mapArray[i][j] == 1){
+						target.img.style.top = (newTOP + 1) * map.mapHeightSize + "px";
+						target.vy = 0;
+						
+						//移動床で、押しつぶされたかどうかの判定
+						/*
+						if(!target.jumpFlag){
+							reset = true;
+						};
+						*/
+						
+						if(map.mapArray[i][j] == 1){//通常のブロックなら、リフト力を加える処理を行う。
+							if(map.maplift[i][j].lift == 0){//まだリフト力が加わっていなかったら。
+								map.maplift[i][j].lift = -14;//持ち上げるブロックの判定と、力の大きさ。//なぜか、12,13,15といった数値にすると、バグる。
+							};
+						};
+					};
+				};
+			};
+		};
+
+		//下に移動
+		if(target.vy > 0){
+			for(i=BOTTOM; i<=newBOTTOM; i++){
+				for(j=LEFT; j<=RIGHT; j++){
+					if(map.mapArray[i][j] == 1){
+						target.img.style.top = newBOTTOM * map.mapHeightSize - parseInt(target.img.style.height) + "px";
+						target.vy = 0;
+						target.jumpFlag = false;//着地
+						/*
+						if(map.mapArray[i][j] == 2){
+							//map.maplift[i][j].style.backgroundColor = "white";
+							map.mapArray[i][j] = 0;
+							//map.maplift[i][j].onBlock = true;
+							map.maplift[i][j].fallFlag = true;
+							
+						};
+						*/
+					};
+				};
+			};
+			if(target.vy != 0){
+				target.jumpFlag = true;//vyがゼロになっていないという事は、ブロックが無かったという事、すなわち落下。
+			};
+		};
+	};
+
+	//X方向の移動
+	if(s == "X"){
+		//左に移動
+		if(target.vx < 0){
+			for(i=TOP; i<=BOTTOM; i++){
+				for(j=LEFT; j>=newLEFT; j--){
+					if(map.mapArray[i][j] == 1){
+						target.img.style.left = (newLEFT + 1) * map.mapWidthSize + "px";
+						target.vx = 0;//壁にぶつかったら、速度をゼロにする。
+					};
+				};
+			};
+		};
+
+		//右に移動
+		if(target.vx > 0){
+			for(i=TOP; i<=BOTTOM; i++){
+				for(j=RIGHT; j<=newRIGHT; j++){
+					if(map.mapArray[i][j] == 1){
+						target.img.style.left = newRIGHT * map.mapWidthSize - parseInt(target.img.style.width) + "px";
+						target.vx = 0;
+					};
+				};
+			};
+		};
+	};
+
+};//function Move  END
+
+
+//game全体管理
+function game(){
+	var obj = this;//thisが指すものが、記述場所によって、変わらないように。
+
+	var SHIFT_KEY	= 16,
+		SPACE_KEY	= 32,
+		LEFT_KEY	= 37,
+		UP_KEY		= 38,
+		RIGHT_KEY	= 39,
+		DOWN_KEY	= 40;
+
+	// キーボード
+	obj.key=new Array();
+	var KEY_COUNT = 256;
+	for(var i=0; i<KEY_COUNT; i++){
+		obj.key[i]=false;
+	};
+	document.onkeydown=function(e){
+		if(e){
+			obj.key[e.which]=true;//thisにすると、documentを指すことになるみたい。
+		} else {
+			obj.key[event.keyCode]=true;
+		};
+	};
+	document.onkeyup=function(e){
+		if(e){
+			obj.key[e.which]=false;
+		} else {
+			obj.key[event.keyCode]=false;
+		};
+	};
+	this.isKey = function(code){
+		return obj.key[code];
+	};
+
+	var view = new createView();//viewオブジェクトを作成。
+	var base = new createBase(view);//baseオブジェクトを作成。
+	var map = new createMap(base);//mapチップ配置。
+	var hero = new createHero(base);//heroオブジェクトを作成。
+	var enemyArray = new Array();
+	var enemyCount = 30;
+	for(var i=0; i<enemyCount; i++){
+		enemyArray[i] = new createEnemy(base);
+	};
+
+	var INTERVAL_TIMER = 40;
+	var h = hero.img.style;//以降の記述省略のためだけ。
+	//var groungHeight = parseInt(h.top);
+
+	var gravity = 3;//重力	mapオブジェクトに持って行ってもいいかも。//マップチップより、１pxでいいから、小さい方が、ブロックからの抜け落ちが無い。
+	
+	function Update(){
+		var i,j;
+
+		//この辺りで、座標から消えているかどうかをチェックして、消えていたら、配列から除く処理をしてはどうか。
+		
+		//敵の動き
+		for(i=0; i<enemyArray.length; i++){
+			moveEnemy(enemyArray[i],map,"X");
+			
+			//重力の影響を受けない敵キャラのために、Getter、Setter関数を設けて、無影響なキャラには、重力を加算しないようにしよう。
+			enemyArray[i].vy += gravity;
+			if(enemyArray[i].vy > enemyArray[i].jump){
+				enemyArray[i].vy = enemyArray[i].jump;
+			};
+			moveEnemy(enemyArray[i],map,"Y");
+		};
+		
+		
+		//ジャンプ処理の元あった位置
+		
+
+		
+		//しゃがみ、左右の加速があった場所
+		
+		
+
+		//ブロックの押し上げ処理
+		for(i=0; i<map.maplift.length; i++){
+			for(j=0; j<map.maplift[i].length; j++){
+				if(map.maplift[i][j] != null){//nullをチェックから外さないと、エラーが出る。
+					//リフトするブロックの処理
+					if(map.maplift[i][j].lift != 0){
+						//ブロックと敵との当たり判定
+						if(map.maplift[i][j].lift < 0){//ブロック上昇中にのみ、当たり判定が出るように。
+							blockHitTest(map.maplift[i][j],enemyArray);
+						};
+						map.maplift[i][j].style.top = parseInt(map.maplift[i][j].style.top) + map.maplift[i][j].lift + "px";
+						map.maplift[i][j].lift += gravity;
+						//alert(map.maplift[i][j].lift);
+						if(i*map.mapHeightSize <= parseInt(map.maplift[i][j].style.top)){
+							map.maplift[i][j].style.top = i*map.mapHeightSize;
+							map.maplift[i][j].lift = 0;
+						};
+					};
+				};
+			};
+		};
+		
+		
+		for(i=0; i<map.mapFall.length; i++){
+			if(map.mapFall[i].fallFlag){
+				map.mapFall[i].vy -= gravity/10;//ここの数値を小さくするほど、落ちるブロックの列を、ダッシュで駆け抜けやすくなる。
+			};
+		};
+		
+		//梯子を登る
+		if(obj.isKey(UP_KEY)){
+			if(LadderTest(hero, map)){
+				hero.onLadder = true;
+				hero.vx = 0;
+				//hero.vy = 0;
+				
+				hero.vy = -hero.LadderSpeed;
+				Move(hero,map,"Y");
+				hero.img.style.top = parseInt(hero.img.style.top) + hero.vy + "px";
+				
+				if(hero.onLadder){
+					if(!LadderTest(hero, map)){
+						hero.img.style.top = parseInt(hero.img.style.top) - hero.vy + "px";
+					};
+				};
+			};
+			/*
+			if(!LadderTest(hero, map)){
+				hero.img.style.top = parseInt(hero.img.style.top) - hero.vy + "px";
+			};
+			*/
+		};
+			
+		//hero.img.style.top = parseInt(hero.img.style.top) -3 + "px";
+		if(hero.onLadder){
+			/*if(obj.isKey(UP_KEY)){
+				hero.vy = -3;
+				Move(hero,map,"Y");
+				hero.img.style.top = parseInt(hero.img.style.top) + hero.vy + "px";
+				LadderTest(hero, map);
+			} else*/
+			if(obj.isKey(DOWN_KEY)){
+				if(LadderTest(hero, map)){
+					hero.vy = hero.LadderSpeed;
+					Move(hero,map,"Y");
+					hero.img.style.top = parseInt(hero.img.style.top) + hero.vy + "px";
+				} else {
+					hero.vy = 0;
+					hero.onLadder = false;
+				};
+			} else if(obj.isKey(LEFT_KEY)){			
+				if(LadderTest(hero, map)){
+					hero.vx = -hero.LadderSpeed;
+					Move(hero,map,"X");
+					hero.img.style.left = parseInt(hero.img.style.left) + hero.vx + "px";
+				} else {
+					hero.vy = 0;
+					hero.onLadder = false;
+				};
+			} else if(obj.isKey(RIGHT_KEY)){
+				if(LadderTest(hero, map)){
+					hero.vx = hero.LadderSpeed;
+					Move(hero,map,"X");
+					hero.img.style.left = parseInt(hero.img.style.left) + hero.vx + "px";
+				} else {
+					hero.vy = 0;
+					hero.onLadder = false;
+				};
+			};
+		};
+		
+	if(!hero.onLadder){
+		//しゃがみ
+		if( !hero.squatFlag && obj.isKey(DOWN_KEY) ){
+				hero.img.style.top = parseInt(hero.img.style.top) + hero.stand - hero.squat + "px";
+				hero.img.style.height = hero.squat + "px";
+				hero.squatFlag = true;
+		};
+		if( hero.squatFlag && !obj.isKey(DOWN_KEY) ){
+			if( standCheck(hero,map) ){
+				hero.img.style.top = parseInt(hero.img.style.top) - (hero.stand - hero.squat) + "px";
+				hero.img.style.height = hero.stand + "px";
+				hero.squatFlag = false;
+			};
+		};
+		
+		//左
+		if(obj.isKey(LEFT_KEY)){
+				hero.vx -= hero.ax;//速度に、加速度をプラス。
+				if(hero.vx < -hero.vx_MAX){
+					hero.vx = -hero.vx_MAX;
+				};
+		};
+
+		//右
+		if(obj.isKey(RIGHT_KEY)){
+				hero.vx += hero.ax;//速度に、加速度をプラス。
+				if(hero.vx > hero.vx_MAX){
+					hero.vx = hero.vx_MAX;
+				};
+		};
+		
+		//MoveX
+		Move(hero,map,"X");
+		hero.img.style.left = parseInt(hero.img.style.left) + hero.vx + "px";
+		
+		//踏みつけ
+		
+		//MoveYの元あった位置
+		
+			/*
+			var print = document.getElementById("print");
+			var text = document.createElement("div");
+			text.innerHTML = hero.vy;
+			print.appendChild(text);
+			*/
+		
+		if(hero.vy > 0){//落下時のみ、作用するように。
+			for(i=0; i<map.mapFall.length; i++){
+				if( blockStandTest(hero, map, map.mapFall[i]) ){
+						/*
+						var text2 = document.createElement("div");
+						text2.innerHTML = "~~~~~";
+						print.appendChild(text2);
+						*/
+					break;
+				};
+			};
+		};
+		
+		//jump
+		if(obj.isKey(SPACE_KEY)){
+			if(!hero.jumpFlag){
+				hero.jumpFlag = true;
+				hero.vy = -hero.jump;
+			} else if(hero.vy < 0){//上昇中のみ作用するように。下降中にも作用すると、ゆっくり落下してしまうから。
+				hero.vy -= gravity/2;	//上昇中にジャンプボタンを押している間は、重力が１／２になる。（重力が少ない分、hero.vyがプラスになるまでの時間がかかるようになり、結果としてジャンプ力が上がる。）
+			};
+		};
+		
+		Move(hero,map,"Y");
+		hero.img.style.top = parseInt(hero.img.style.top) + hero.vy + "px";
+
+		hero.vy += gravity;//重力
+			if(hero.vy > hero.jump){
+				hero.vy = hero.jump;//ジャンプの落下速度が、マップチップの縦幅を超えて、マップチップをすり抜けるのを防ぐため。
+			};
+		
+		if(hero.vy > 0){
+			//踏みつけ判定 //MoveYより先にこの処理を持ってくると、敵に密着して踏みつけた感じが出ない、それは、踏みつけ後のジャンプ力が、すぐにMoveYで反映されてしまうから。
+			//ただ、この順番じゃないと、踏みつけミスが起こる可能性が出てくる、先にMoveYがあると、地面に着地して、vyがゼロになり、当たり判定の範囲が無くなる可能性が出てくるからだ。
+			AttackTest(hero,enemyArray);
+		};
+		
+	};//!hero.onLadder END
+	
+		for(i=0; i<map.mapFall.length; i++){
+			if(map.mapFall[i].fallFlag){
+				if(map.mapFall[i].vy != 0){
+					map.mapFall[i].style.top = parseInt(map.mapFall[i].style.top) + map.mapFall[i].vy + "px";
+					if( parseInt(map.mapFall[i].style.top) > parseInt(base.baseDiv.style.height) || parseInt(map.mapFall[i].style.top)+map.mapHeightSize < 0 ){
+						map.mapFall[i].fallFlag = false;
+					};
+				};
+				if(map.mapFall[i].vx != 0){
+					map.mapFall[i].style.left = parseInt(map.mapFall[i].style.left) + map.mapFall[i].vx + "px";
+					if( parseInt(map.mapFall[i].style.left) > parseInt(base.baseDiv.style.width) || parseInt(map.mapFall[i].style.left)+map.mapWidthSize < 0 ){
+						map.mapFall[i].fallFlag = false;
+					};
+				};
+			};
+		};
+		/*
+		for(i=0; i<map.mapFall.length; i++){
+			if(map.mapFall[i].fallFlag){
+				if(blockStandTest(hero, map, map.mapFall[i])){
+					break;
+				};
+			};
+		};
+		*/
+		
+		
+		
+		/*
+		var loopStopFlag = false;
+		for(i=0; i<map.maplift.length; i++){
+			if(loopStopFlag){
+				break;
+			};
+			for(j=0; j<map.maplift[i].length; j++){
+				if(map.maplift[i][j] != null){//nullをチェックから外さないと、エラーが出る。
+					
+					//落下するブロックの処理
+					if(map.maplift[i][j].fallFlag){
+						if(blockStandTest(hero, map, map.maplift[i][j])){
+							loopStopFlag = true;
+							break;
+						};
+					};
+				};
+			};
+		};
+		*/
+		
+		hitStageDoor(hero, map, base);
+		
+		
+		//MoveXの元場所
+		
+		if(!hero.onLadder){
+		//摩擦
+		//if(!hero.onBlock){//地上にいる時のみ、摩擦が生じるように。
+			if(hero.vx < 0){
+				var vx_abs = Math.abs(hero.vx);
+				vx_abs--;//徐々に減速。
+				if(vx_abs < 0){//絶対値として、ゼロ以下になったら、という意味
+					vx_abs = 0;//停止
+				};
+				hero.vx = -vx_abs;
+			} else {
+				hero.vx--;
+				if(hero.vx < 0){
+					hero.vx = 0;//停止
+				};
+			};
+		//};
+		
+		
+				
+
+										//MoveYがあった場所
+
+			
+		};
+		
+		
+		//主人公と敵との当たり判定
+		if(hitTest(hero,enemyArray)){
+			reset = true;
+		};
+		
+		//スクロール処理
+		viewScroll(view,base,hero);
+		
+		if(reset){
+			clearInterval(ID);
+			view.frame.parentNode.removeChild(view.frame);
+			reset = false;
+			main = new game();
+		};
+	};
+	ID = setInterval(Update,INTERVAL_TIMER);
+};
+</script>
+<script type="text/javascript" src="hitTest.js"></script>
+<script type="text/javascript" src="enemymove.js"></script>
+<script type="text/javascript" src="ladder.js"></script>
+<script type="text/javascript" src="hitStageDoor.js"></script>
+</head>
+<body>
+	<div id="print" style="height: 100px; overflow: scroll;">
+	</div>
+</body>
